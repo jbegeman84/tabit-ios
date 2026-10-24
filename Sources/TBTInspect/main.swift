@@ -37,7 +37,7 @@ do {
         declaredFileLength: document.header.declaredFileLength,
         firstCompressedStreamLength: document.header.firstCompressedStreamLength,
         payloads: document.payloads.enumerated().map { index, payload in
-            Payload(
+            Inspection.Payload(
                 index: index,
                 compressedOffset: payload.compressedRange.lowerBound,
                 compressedLength: payload.compressedRange.count,
