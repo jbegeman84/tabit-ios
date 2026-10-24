@@ -14,7 +14,7 @@ public enum TBTError: Error, Equatable, LocalizedError {
         case let .fileTooShort(actual):
             "A TBT file needs a 64-byte header; this file has \(actual) bytes."
         case .invalidSignature:
-            "The file does not start with the TabIt signature “TBTr”."
+            "The file does not start with the TabIt signature prefix “TBT”."
         case let .declaredSizeMismatch(declared, actual):
             "The header declares \(declared) bytes, but the file contains \(actual)."
         case let .invalidCompressedStream(offset, status):
@@ -29,8 +29,9 @@ public enum TBTError: Error, Equatable, LocalizedError {
 
 public struct TBTHeader: Equatable, Sendable {
     public static let byteCount = 64
-    public static let signature = Data([0x54, 0x42, 0x54, 0x72])
+    public static let signaturePrefix = Data([0x54, 0x42, 0x54])
 
+    public let formatMarker: UInt8
     public let version: String
     public let firstCompressedStreamLength: Int
     public let declaredFileLength: Int
@@ -76,7 +77,7 @@ public struct TBTDocument: Equatable, Sendable {
         guard data.count >= TBTHeader.byteCount else {
             throw TBTError.fileTooShort(actual: data.count)
         }
-        guard data.prefix(4) == TBTHeader.signature else {
+        guard data.prefix(3) == TBTHeader.signaturePrefix else {
             throw TBTError.invalidSignature
         }
 
@@ -92,6 +93,7 @@ public struct TBTDocument: Equatable, Sendable {
         let version = String(bytes: versionBytes, encoding: .ascii) ?? ""
         let firstStreamLength = data.littleEndianUInt32(at: 0x30)
         let header = TBTHeader(
+            formatMarker: data[3],
             version: version,
             firstCompressedStreamLength: firstStreamLength,
             declaredFileLength: declaredFileLength,

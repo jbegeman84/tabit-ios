@@ -12,6 +12,7 @@ struct Inspection: Encodable {
 
     let path: String
     let fileLength: Int
+    let formatMarker: Int
     let version: String
     let declaredFileLength: Int
     let firstCompressedStreamLength: Int
@@ -33,6 +34,7 @@ do {
     let inspection = Inspection(
         path: path,
         fileLength: data.count,
+        formatMarker: Int(document.header.formatMarker),
         version: document.header.version,
         declaredFileLength: document.header.declaredFileLength,
         firstCompressedStreamLength: document.header.firstCompressedStreamLength,

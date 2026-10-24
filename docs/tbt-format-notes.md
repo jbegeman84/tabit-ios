@@ -1,13 +1,15 @@
 # TBT format recovery notes
 
-Status: preliminary observations from `Rose Of Sharyn.tbt`. A field is not
-considered understood until controlled samples confirm it.
+Status: preliminary observations from `Rose Of Sharyn.tbt` and the two demo
+files bundled with TabIt 2.03. A field is not considered understood until
+controlled samples confirm it.
 
 ## Confirmed envelope
 
 | Offset | Size | Meaning |
 | --- | ---: | --- |
-| `0x00` | 4 | ASCII signature `TBTr` |
+| `0x00` | 3 | ASCII signature prefix `TBT` |
+| `0x03` | 1 | Format marker: `o` in 1.6 demos, `r` in the 2.0 sample |
 | `0x07` | variable | Null-terminated format version; sample value `2.0` |
 | `0x30` | 4 | Little-endian compressed length of payload 0 |
 | `0x38` | 4 | Little-endian total file length |
@@ -24,6 +26,10 @@ The sample is 4,540 bytes. Its payloads are:
 
 The remaining header fields are unknown. Values that resemble checksums must
 not be labelled as checksums until mutation experiments confirm them.
+
+The bundled `Demo.tbt` and `Drum Demo.tbt` use version `1.6` and the `TBTo`
+marker. They retain the same 64-byte envelope, length fields, and two-stream
+layout. Both parse with the same envelope reader.
 
 ## Next controlled samples
 

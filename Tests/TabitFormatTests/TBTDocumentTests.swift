@@ -8,6 +8,7 @@ struct TBTDocumentTests {
     @Test func parsesHeaderAndConcatenatedPayloads() throws {
         let document = try TBTDocument.parse(fixture)
 
+        #expect(document.header.formatMarker == 0x72)
         #expect(document.header.version == "2.0")
         #expect(document.header.declaredFileLength == 129)
         #expect(document.header.firstCompressedStreamLength == 22)
@@ -16,6 +17,18 @@ struct TBTDocumentTests {
         #expect(document.payloads[0].data == Data([4, 0]) + Data("Test".utf8) + Data([6, 0]) + Data("Artist".utf8))
         #expect(document.payloads[1].data == Data(Array(0..<32) + Array(0..<32) + Array(0..<32)))
         #expect(document.originalData == fixture)
+    }
+
+    @Test func parsesLegacyFormatMarker() throws {
+        var legacy = fixture
+        legacy[3] = 0x6f
+        legacy.replaceSubrange(7...9, with: Data("1.6".utf8))
+
+        let document = try TBTDocument.parse(legacy)
+
+        #expect(document.header.formatMarker == 0x6f)
+        #expect(document.header.version == "1.6")
+        #expect(document.payloads.count == 2)
     }
 
     @Test func extractsPrintableStringsConservatively() throws {
