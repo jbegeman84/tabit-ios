@@ -411,8 +411,8 @@ private struct TablatureSystem: View {
 
             let barLineMap = Dictionary(uniqueKeysWithValues: barLines.map { ($0.space, $0) })
             for physicalSpace in spaces {
-                let timelinePosition = timelinePosition(at: physicalSpace)
-                let plainSpace = Int(floor(timelinePosition))
+                let currentPosition = timelinePosition(at: physicalSpace)
+                let plainSpace = Int(floor(currentPosition))
                 let previousPlainSpace = physicalSpace > 0
                     ? Int(floor(timelinePosition(at: physicalSpace - 1)))
                     : -1
