@@ -1,5 +1,6 @@
 #include "CTabitCompression.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
@@ -65,6 +66,43 @@ int tabit_inflate_zlib(
     *consumed = stream.total_in;
     inflateEnd(&stream);
     return Z_OK;
+}
+
+int tabit_deflate_zlib(
+    const uint8_t *input,
+    size_t input_length,
+    uint8_t **output,
+    size_t *output_length
+) {
+    if (!input || !output || !output_length || input_length > UINT_MAX) {
+        return Z_STREAM_ERROR;
+    }
+
+    uLongf capacity = compressBound((uLong)input_length);
+    uint8_t *buffer = malloc(capacity);
+    if (!buffer) {
+        return Z_MEM_ERROR;
+    }
+
+    int result = compress2(
+        buffer,
+        &capacity,
+        input,
+        (uLong)input_length,
+        Z_BEST_COMPRESSION
+    );
+    if (result != Z_OK) {
+        free(buffer);
+        return result;
+    }
+
+    *output = buffer;
+    *output_length = (size_t)capacity;
+    return Z_OK;
+}
+
+uint32_t tabit_crc32(const uint8_t *input, size_t input_length) {
+    return (uint32_t)crc32(0L, input, (uInt)input_length);
 }
 
 void tabit_free(void *pointer) {

@@ -4,6 +4,7 @@ import Testing
 
 struct TBTDocumentTests {
     private let fixture = Data(base64Encoded: "VEJUcrgHAzIuMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFgAAAAAAAACBAAAAAAAAAHjaY2EISS0uYWNwLCrJLC4BABl0BCJ42mNgZGJmYWVj5+Dk4ubh5eMXEBQSFhEVE5eQlJKWkZWTZ6BQHgD6UAXR")!
+    private let editableFixture = Data(base64Encoded: "VEJUcngBAzIuMAALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAHgAQwAAALH++VqVAAAADJ8SxnjaY2FgYGCTZkhggAIHCYb/DAjAyRCSWlyiEJyfl87G4FhUkllcwsrgmJNUmgvklpZk5BexMzjn5+am5pUAAH+XDwN42mNhAAEmBsZmfzALAAXbANo=")!
 
     @Test func parsesHeaderAndConcatenatedPayloads() throws {
         let document = try TBTDocument.parse(fixture)
@@ -122,6 +123,20 @@ struct TBTDocumentTests {
         #expect(score.tracks[0].events[0].notes == [
             TBTStringNote(string: 0, value: .fret(3), effect: nil),
         ])
+    }
+
+    @Test func editsAndRoundTripsANote() throws {
+        let document = try TBTDocument.parse(editableFixture)
+        var score = try TBTScoreParser.parse(document)
+        score.tracks[0].events[0].notes[0].value = .fret(5)
+
+        let savedData = try TBTScoreWriter.serialize(document: document, score: score)
+        let savedDocument = try TBTDocument.parse(savedData)
+        let savedScore = try TBTScoreParser.parse(savedDocument)
+
+        #expect(savedScore.title == "Test Song")
+        #expect(savedScore.tracks[0].events[0].notes[0].value == .fret(5))
+        #expect(savedDocument.header.declaredFileLength == savedData.count)
     }
 
     @Test func rejectsInvalidSignature() {

@@ -16,6 +16,15 @@ int tabit_inflate_zlib(
     size_t *consumed
 );
 
+int tabit_deflate_zlib(
+    const uint8_t *input,
+    size_t input_length,
+    uint8_t **output,
+    size_t *output_length
+);
+
+uint32_t tabit_crc32(const uint8_t *input, size_t input_length);
+
 void tabit_free(void *pointer);
 
 #endif

@@ -11,7 +11,8 @@ The project currently contains:
   printable strings as JSON.
 - `Tabit.xcodeproj`: a native SwiftUI iPhone/iPad reader that imports `.tbt`
   files through the system Files picker, decodes tracks and note events, and
-  renders instrument-selectable tablature.
+  renders instrument-selectable tablature. It can play one track or all tracks,
+  edit fret/mute/stop events, and export an edited `.tbt` copy.
 - Fixture-based tests for valid files and damaged headers.
 
 No original TabIt source code or proprietary assets are included.
@@ -36,9 +37,9 @@ Run `xcodegen generate` after changing project settings.
 ## Current scope
 
 The app currently reads and renders tracks from TabIt format markers `0x6f`
-through `0x72`. Playback, editing, and `.tbt` writing are the next milestones.
-Until a lossless writer is complete, retaining `originalData` prevents unknown
-data from being silently discarded.
+through `0x72`. Note editing preserves metadata, bar lines, timing regions,
+track effects, and unsupported fields from the source file. Saving always uses
+**Save Copy** so the original song is not overwritten.
 
 See `docs/tbt-format-notes.md` for confirmed findings and the next experiments.
 See `THIRD_PARTY_NOTICES.md` for attribution for the independently recovered

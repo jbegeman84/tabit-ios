@@ -5,13 +5,22 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @State private var song: LoadedSong?
     @State private var isImporting = false
+    @State private var isExporting = false
+    @State private var exportDocument: TBTExportDocument?
+    @State private var exportFileName = "Edited Song.tbt"
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Group {
-                if let song {
-                    SongDetailView(song: song)
+                if song != nil {
+                    SongDetailView(
+                        song: Binding(
+                            get: { song! },
+                            set: { song = $0 }
+                        ),
+                        saveCopy: saveCopy
+                    )
                 } else {
                     EmptyLibraryView {
                         isImporting = true
@@ -38,6 +47,16 @@ struct ContentView: View {
             allowsMultipleSelection: false,
             onCompletion: importFiles
         )
+        .fileExporter(
+            isPresented: $isExporting,
+            document: exportDocument,
+            contentType: .tabitTablature,
+            defaultFilename: exportFileName
+        ) { result in
+            if case let .failure(error) = result {
+                errorMessage = error.localizedDescription
+            }
+        }
         .alert(
             "Couldn’t Open File",
             isPresented: Binding(
@@ -67,8 +86,26 @@ struct ContentView: View {
             let document = try TBTDocument.parse(data)
             song = LoadedSong(
                 summary: TBTSummary(document: document, fileName: url.lastPathComponent),
-                score: try TBTScoreParser.parse(document)
+                score: try TBTScoreParser.parse(document),
+                document: document
             )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func saveCopy() {
+        guard let song else { return }
+        do {
+            exportDocument = TBTExportDocument(
+                data: try TBTScoreWriter.serialize(
+                    document: song.document,
+                    score: song.score
+                )
+            )
+            let baseName = (song.summary.fileName as NSString).deletingPathExtension
+            exportFileName = "\(baseName) Edited.tbt"
+            isExporting = true
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -77,7 +114,26 @@ struct ContentView: View {
 
 private struct LoadedSong {
     let summary: TBTSummary
-    let score: TBTScore
+    var score: TBTScore
+    let document: TBTDocument
+}
+
+private struct TBTExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.tabitTablature] }
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
 }
 
 private struct EmptyLibraryView: View {
@@ -99,20 +155,32 @@ private struct EmptyLibraryView: View {
 }
 
 private struct SongDetailView: View {
-    let song: LoadedSong
+    @Binding var song: LoadedSong
+    let saveCopy: () -> Void
     @State private var selectedTrack = 0
     @State private var section = 0
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                Text(song.score.title.isEmpty ? song.summary.fileName : song.score.title)
-                    .font(.title2.bold())
-                    .lineLimit(1)
-                if !song.score.artist.isEmpty {
-                    Text(song.score.artist)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(song.score.title.isEmpty ? song.summary.fileName : song.score.title)
+                            .font(.title2.bold())
+                            .lineLimit(1)
+                        if !song.score.artist.isEmpty {
+                            Text(song.score.artist)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button(action: saveCopy) {
+                        Label("Save Copy", systemImage: "square.and.arrow.down")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("saveCopyButton")
                 }
                 Picker("Section", selection: $section) {
                     Text("Tablature").tag(0)
@@ -126,7 +194,7 @@ private struct SongDetailView: View {
 
             if section == 0 {
                 TablatureView(
-                    score: song.score,
+                    score: $song.score,
                     selectedTrack: $selectedTrack
                 )
             } else {
@@ -138,8 +206,11 @@ private struct SongDetailView: View {
 }
 
 private struct TablatureView: View {
-    let score: TBTScore
+    @Binding var score: TBTScore
     @Binding var selectedTrack: Int
+    @State private var editTarget: NoteEditTarget?
+    @StateObject private var playback = TBTPlaybackController()
+    @State private var playbackError: String?
 
     private var displayedTracks: [TBTTrack] {
         selectedTrack == -1 ? score.tracks : score.tracks.filter { $0.id == selectedTrack }
@@ -148,15 +219,46 @@ private struct TablatureView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Instrument", selection: $selectedTrack) {
-                    Text("All Tracks").tag(-1)
-                    ForEach(score.tracks) { track in
-                        Text("\(track.name) · \(track.instrumentName)").tag(track.id)
+                HStack {
+                    Picker("Instrument", selection: $selectedTrack) {
+                        Text("All Tracks").tag(-1)
+                        ForEach(score.tracks) { track in
+                            Text("\(track.name) · \(track.instrumentName)").tag(track.id)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("trackPicker")
+
+                    Spacer()
+
+                    Button {
+                        if playback.isPlaying {
+                            playback.stop()
+                        } else {
+                            do {
+                                try playback.play(
+                                    score: score,
+                                    selectedTrack: selectedTrack
+                                )
+                            } catch {
+                                playbackError = error.localizedDescription
+                            }
+                        }
+                    } label: {
+                        Label(
+                            playback.isPlaying ? "Stop" : "Play",
+                            systemImage: playback.isPlaying ? "stop.fill" : "play.fill"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("playbackButton")
                 }
-                .pickerStyle(.menu)
                 .padding(.horizontal)
-                .accessibilityIdentifier("trackPicker")
+
+                Label("Tap a string position to add or edit a note", systemImage: "hand.tap")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
 
                 ForEach(displayedTracks) { track in
                     VStack(alignment: .leading, spacing: 8) {
@@ -180,7 +282,14 @@ private struct TablatureView: View {
                                 TablatureSystem(
                                     track: track,
                                     barLines: score.barLines,
-                                    spaces: range
+                                    spaces: range,
+                                    editNote: { space, string in
+                                        editTarget = makeEditTarget(
+                                            track: track,
+                                            space: space,
+                                            string: string
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -191,6 +300,26 @@ private struct TablatureView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityIdentifier("tablatureView")
+        .onDisappear {
+            playback.stop()
+        }
+        .alert(
+            "Playback Unavailable",
+            isPresented: Binding(
+                get: { playbackError != nil },
+                set: { if !$0 { playbackError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { playbackError = nil }
+        } message: {
+            Text(playbackError ?? "")
+        }
+        .sheet(item: $editTarget) { target in
+            NoteEditor(target: target) { value in
+                setNote(target: target, value: value)
+            }
+            .presentationDetents([.medium])
+        }
     }
 
     private func systemRanges(for track: TBTTrack) -> [Range<Int>] {
@@ -198,12 +327,63 @@ private struct TablatureView: View {
             $0..<min($0 + 15, track.spaceCount)
         }
     }
+
+    private func makeEditTarget(track: TBTTrack, space: Int, string: Int) -> NoteEditTarget {
+        let note = track.events.first { $0.space == space }?
+            .notes.first { $0.string == string }
+        return NoteEditTarget(
+            track: track.id,
+            space: space,
+            string: string,
+            value: note?.value,
+            effect: note?.effect
+        )
+    }
+
+    private func setNote(target: NoteEditTarget, value: TBTStringNote.Value?) {
+        guard score.tracks.indices.contains(target.track) else { return }
+        var track = score.tracks[target.track]
+        var eventIndex = track.events.firstIndex { $0.space == target.space }
+
+        if eventIndex == nil, value != nil {
+            track.events.append(
+                TBTNoteEvent(
+                    space: target.space,
+                    notes: [],
+                    topText: nil,
+                    bottomText: nil
+                )
+            )
+            track.events.sort { $0.space < $1.space }
+            eventIndex = track.events.firstIndex { $0.space == target.space }
+        }
+
+        if let eventIndex {
+            track.events[eventIndex].notes.removeAll { $0.string == target.string }
+            if let value {
+                track.events[eventIndex].notes.append(
+                    TBTStringNote(
+                        string: target.string,
+                        value: value,
+                        effect: target.effect
+                    )
+                )
+                track.events[eventIndex].notes.sort { $0.string < $1.string }
+            }
+            let event = track.events[eventIndex]
+            if event.notes.isEmpty, event.topText == nil, event.bottomText == nil {
+                track.events.remove(at: eventIndex)
+            }
+        }
+        score.tracks[target.track] = track
+    }
 }
 
 private struct TablatureSystem: View {
     let track: TBTTrack
     let barLines: [TBTBarLine]
     let spaces: Range<Int>
+    let editNote: (Int, Int) -> Void
 
     private let columnWidth: CGFloat = 22
     private let labelWidth: CGFloat = 34
@@ -290,6 +470,19 @@ private struct TablatureSystem: View {
             width: labelWidth + CGFloat(spaces.count) * columnWidth + 10,
             height: CGFloat(track.stringCount) * lineHeight + 30
         )
+        .contentShape(Rectangle())
+        .gesture(
+            SpatialTapGesture().onEnded { tap in
+                let relativeX = tap.location.x - labelWidth
+                let line = Int(((tap.location.y - 24) / lineHeight).rounded())
+                let spaceOffset = Int(floor(relativeX / columnWidth))
+                guard relativeX >= 0,
+                      (0..<spaces.count).contains(spaceOffset),
+                      (0..<track.stringCount).contains(line) else { return }
+                let string = track.stringCount - line - 1
+                editNote(spaces.lowerBound + spaceOffset, string)
+            }
+        )
         .padding(8)
         .background(
             Color(uiColor: .secondarySystemGroupedBackground),
@@ -307,6 +500,91 @@ private struct TablatureSystem: View {
         let midi = standard[string] + track.tuning[string] + track.transpose
         let names = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"]
         return names[(midi % 12 + 12) % 12]
+    }
+}
+
+private struct NoteEditTarget: Identifiable {
+    let track: Int
+    let space: Int
+    let string: Int
+    let value: TBTStringNote.Value?
+    let effect: TBTNoteEffect?
+
+    var id: String { "\(track)-\(space)-\(string)" }
+}
+
+private struct NoteEditor: View {
+    private enum Kind: String, CaseIterable, Identifiable {
+        case fret = "Fret"
+        case muted = "Muted"
+        case stopped = "Stopped"
+        case clear = "Clear"
+
+        var id: Self { self }
+    }
+
+    let target: NoteEditTarget
+    let save: (TBTStringNote.Value?) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var kind: Kind
+    @State private var fret: Int
+
+    init(target: NoteEditTarget, save: @escaping (TBTStringNote.Value?) -> Void) {
+        self.target = target
+        self.save = save
+        switch target.value {
+        case let .fret(value):
+            _kind = State(initialValue: .fret)
+            _fret = State(initialValue: value)
+        case .muted:
+            _kind = State(initialValue: .muted)
+            _fret = State(initialValue: 0)
+        case .stopped:
+            _kind = State(initialValue: .stopped)
+            _fret = State(initialValue: 0)
+        case nil:
+            _kind = State(initialValue: .fret)
+            _fret = State(initialValue: 0)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Note", selection: $kind) {
+                        ForEach(Kind.allCases) { kind in
+                            Text(kind.rawValue).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if kind == .fret {
+                        Stepper("Fret \(fret)", value: $fret, in: 0...99)
+                    }
+                } footer: {
+                    Text("Track \(target.track + 1), space \(target.space + 1), string \(target.string + 1)")
+                }
+            }
+            .navigationTitle("Edit Note")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        switch kind {
+                        case .fret: save(.fret(fret))
+                        case .muted: save(.muted)
+                        case .stopped: save(.stopped)
+                        case .clear: save(nil)
+                        }
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

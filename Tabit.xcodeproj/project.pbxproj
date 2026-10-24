@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3FF74CCE1EC19593E4B1ADDA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4EB38CFD8863041FCD833D /* ContentView.swift */; };
+		4D1286D75BD1FDA14047F875 /* TBTPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7446DDC958DC7456BBFDA427 /* TBTPlaybackController.swift */; };
 		8D523AE91BB7AD7E16F6741E /* TabitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191870F8BB0174AA535B9C9E /* TabitApp.swift */; };
 		92FEA221670E08B88988B34D /* TabitFormat in Frameworks */ = {isa = PBXBuildFile; productRef = DECB9BC2E5DDA8D5EB3CBD5C /* TabitFormat */; };
 /* End PBXBuildFile section */
@@ -16,6 +17,7 @@
 		191870F8BB0174AA535B9C9E /* TabitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabitApp.swift; sourceTree = "<group>"; };
 		55D411158F43F45230E76E9A /* Tabit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tabit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6E49CD68A0BF181CF9F040CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7446DDC958DC7456BBFDA427 /* TBTPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TBTPlaybackController.swift; sourceTree = "<group>"; };
 		7D4EB38CFD8863041FCD833D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C8183A0E22C0D75397C91F88 /* tabit-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "tabit-ios"; path = .; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -55,6 +57,7 @@
 				7D4EB38CFD8863041FCD833D /* ContentView.swift */,
 				6E49CD68A0BF181CF9F040CE /* Info.plist */,
 				191870F8BB0174AA535B9C9E /* TabitApp.swift */,
+				7446DDC958DC7456BBFDA427 /* TBTPlaybackController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -128,6 +131,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3FF74CCE1EC19593E4B1ADDA /* ContentView.swift in Sources */,
+				4D1286D75BD1FDA14047F875 /* TBTPlaybackController.swift in Sources */,
 				8D523AE91BB7AD7E16F6741E /* TabitApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
