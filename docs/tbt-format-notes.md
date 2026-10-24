@@ -31,6 +31,23 @@ The bundled `Demo.tbt` and `Drum Demo.tbt` use version `1.6` and the `TBTo`
 marker. They retain the same 64-byte envelope, length fields, and two-stream
 layout. Both parse with the same envelope reader.
 
+## Executable analysis
+
+The Inno Setup installer contains `TabIt.exe`, the two demo files, help, and
+trial-support data. Ghidra 12.2 successfully imports and analyzes the 32-bit
+x86 executable.
+
+Strings and Delphi runtime type information confirm:
+
+- The application was built with Borland Delphi.
+- It embeds zlib 1.2.3 and its error classes.
+- Domain/UI type names include `TTrackData` and `TMeasureItemEvent`.
+- Save/open action names and `.tbt` file associations remain in the binary.
+
+The next static-analysis target is the code that references `TTrackData` and
+the zlib routines. Findings from decompiled control flow must still be checked
+against controlled file diffs before becoming writer behavior.
+
 ## Next controlled samples
 
 Create each file in the Windows TabIt application from the same empty baseline,
