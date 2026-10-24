@@ -10,6 +10,14 @@ struct Inspection: Encodable {
         let printableStrings: [String]
     }
 
+    struct Track: Encodable {
+        let index: Int
+        let instrument: String
+        let stringCount: Int
+        let spaceCount: Int
+        let eventCount: Int
+    }
+
     let path: String
     let fileLength: Int
     let formatMarker: Int
@@ -17,6 +25,10 @@ struct Inspection: Encodable {
     let declaredFileLength: Int
     let firstCompressedStreamLength: Int
     let payloads: [Payload]
+    let title: String
+    let artist: String
+    let tempo: Int
+    let tracks: [Track]
 }
 
 guard CommandLine.arguments.count == 2 else {
@@ -31,6 +43,7 @@ let path = CommandLine.arguments[1]
 do {
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
     let document = try TBTDocument.parse(data)
+    let score = try TBTScoreParser.parse(document)
     let inspection = Inspection(
         path: path,
         fileLength: data.count,
@@ -45,6 +58,18 @@ do {
                 compressedLength: payload.compressedRange.count,
                 decompressedLength: payload.data.count,
                 printableStrings: Array(payload.printableStrings.prefix(40))
+            )
+        },
+        title: score.title,
+        artist: score.artist,
+        tempo: score.tempo,
+        tracks: score.tracks.map { track in
+            Inspection.Track(
+                index: track.id,
+                instrument: track.instrumentName,
+                stringCount: track.stringCount,
+                spaceCount: track.spaceCount,
+                eventCount: track.events.count
             )
         }
     )

@@ -53,6 +53,77 @@ struct TBTDocumentTests {
         #expect(summary.payloads[1].decompressedLength == 96)
     }
 
+    @Test func decodesTrackMetadataAndNotes() throws {
+        var metadata = Data([
+            4, 0, 0, 0, // spaces
+            6, // strings
+            27, // clean-guitar MIDI program
+            0, // muted-guitar program
+            96, // volume
+            0, // modulation
+            0, 0, // pitch bend
+            0, // transpose
+            0, // MIDI bank
+            0, // reverb
+            0, // chorus
+            64, // pan
+            24, // highest note
+            0, // display MIDI numbers
+            0xff, // automatic MIDI channel
+            0, // top text
+            0, // bottom text
+            0, 0, 0, 0, 0, 0, 0, 0, // tuning
+            0, // drums
+        ])
+        for value in ["Test Song", "Artist", "Album", "Author", "Comment"] {
+            metadata.append(UInt8(value.utf8.count))
+            metadata.append(0)
+            metadata.append(contentsOf: value.utf8)
+        }
+
+        let body = Data([
+            4, 0, 0, 0, 0, 0, // one bar-line record
+            2, 0, // two delta pairs
+            1, 0x83, // fret 3 on string 0
+            79, 0, // remaining note slots
+            0, 0, 0, 0, // empty track-effect chunk
+        ])
+        let header = TBTHeader(
+            formatMarker: 0x72,
+            tempo: 120,
+            trackCount: 1,
+            version: "2.0",
+            featureBitfield: 0x0b,
+            barCount: 1,
+            spaceCount: 0,
+            lastNonEmptySpace: 0,
+            firstCompressedStreamLength: 0,
+            declaredFileLength: 0,
+            rawData: Data(repeating: 0, count: 64)
+        )
+        let document = TBTDocument(
+            header: header,
+            payloads: [
+                TBTPayload(compressedRange: 64..<64, data: metadata),
+                TBTPayload(compressedRange: 64..<64, data: body),
+            ],
+            originalData: Data()
+        )
+
+        let score = try TBTScoreParser.parse(document)
+
+        #expect(score.title == "Test Song")
+        #expect(score.artist == "Artist")
+        #expect(score.tempo == 120)
+        #expect(score.tracks.count == 1)
+        #expect(score.tracks[0].instrumentName == "Electric Guitar (clean)")
+        #expect(score.tracks[0].stringCount == 6)
+        #expect(score.tracks[0].events.count == 1)
+        #expect(score.tracks[0].events[0].notes == [
+            TBTStringNote(string: 0, value: .fret(3), effect: nil),
+        ])
+    }
+
     @Test func rejectsInvalidSignature() {
         var invalid = fixture
         invalid[0] = 0

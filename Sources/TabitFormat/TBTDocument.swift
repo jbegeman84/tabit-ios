@@ -8,6 +8,8 @@ public enum TBTError: Error, Equatable, LocalizedError {
     case invalidCompressedStream(offset: Int, status: Int32)
     case emptyCompressedStream(offset: Int)
     case firstStreamLengthMismatch(declared: Int, actual: Int)
+    case unsupportedScoreVersion(marker: UInt8)
+    case malformedScore(String)
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +25,10 @@ public enum TBTError: Error, Equatable, LocalizedError {
             "The zlib stream at byte \(offset) consumed no data."
         case let .firstStreamLengthMismatch(declared, actual):
             "The header declares a \(declared)-byte first stream, but it occupies \(actual) bytes."
+        case let .unsupportedScoreVersion(marker):
+            "Score decoding does not yet support TBT format marker 0x\(String(marker, radix: 16))."
+        case let .malformedScore(message):
+            "The score data is malformed: \(message)"
         }
     }
 }
@@ -32,7 +38,13 @@ public struct TBTHeader: Equatable, Sendable {
     public static let signaturePrefix = Data([0x54, 0x42, 0x54])
 
     public let formatMarker: UInt8
+    public let tempo: Int
+    public let trackCount: Int
     public let version: String
+    public let featureBitfield: UInt8
+    public let barCount: Int
+    public let spaceCount: Int
+    public let lastNonEmptySpace: Int
     public let firstCompressedStreamLength: Int
     public let declaredFileLength: Int
     public let rawData: Data
@@ -94,7 +106,13 @@ public struct TBTDocument: Equatable, Sendable {
         let firstStreamLength = data.littleEndianUInt32(at: 0x30)
         let header = TBTHeader(
             formatMarker: data[3],
+            tempo: data.littleEndianUInt16(at: 0x2e),
+            trackCount: Int(data[5]),
             version: version,
+            featureBitfield: data[0x0b],
+            barCount: data.littleEndianUInt16(at: 0x28),
+            spaceCount: data.littleEndianUInt16(at: 0x2a),
+            lastNonEmptySpace: data.littleEndianUInt16(at: 0x2c),
             firstCompressedStreamLength: firstStreamLength,
             declaredFileLength: declaredFileLength,
             rawData: data.prefix(TBTHeader.byteCount)
@@ -158,6 +176,10 @@ public struct TBTDocument: Equatable, Sendable {
 }
 
 private extension Data {
+    func littleEndianUInt16(at offset: Int) -> Int {
+        Int(self[offset]) | (Int(self[offset + 1]) << 8)
+    }
+
     func littleEndianUInt32(at offset: Int) -> Int {
         Int(self[offset])
             | (Int(self[offset + 1]) << 8)

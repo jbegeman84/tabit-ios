@@ -10,8 +10,8 @@ The project currently contains:
 - `tbt-inspect`: a command-line inspector that reports structure and embedded
   printable strings as JSON.
 - `Tabit.xcodeproj`: a native SwiftUI iPhone/iPad reader that imports `.tbt`
-  files through the system Files picker and shows recovered text and format
-  details.
+  files through the system Files picker, decodes tracks and note events, and
+  renders instrument-selectable tablature.
 - Fixture-based tests for valid files and damaged headers.
 
 No original TabIt source code or proprietary assets are included.
@@ -35,10 +35,11 @@ Run `xcodegen generate` after changing project settings.
 
 ## Current scope
 
-The app is currently a reader/inspector. The parser intentionally exposes
-opaque payloads. Field-level notation models, playback, editing, and writing
-support will be added only as fields are confirmed using controlled sample
-files. Until then, retaining `originalData` prevents unknown data from being
-silently discarded.
+The app currently reads and renders tracks from TabIt format markers `0x6f`
+through `0x72`. Playback, editing, and `.tbt` writing are the next milestones.
+Until a lossless writer is complete, retaining `originalData` prevents unknown
+data from being silently discarded.
 
 See `docs/tbt-format-notes.md` for confirmed findings and the next experiments.
+See `THIRD_PARTY_NOTICES.md` for attribution for the independently recovered
+field layout used by the score decoder.
