@@ -16,6 +16,7 @@ struct Inspection: Encodable {
         let stringCount: Int
         let spaceCount: Int
         let eventCount: Int
+        let noteChecksum: String
     }
 
     let path: String
@@ -90,7 +91,8 @@ do {
                 instrument: track.instrumentName,
                 stringCount: track.stringCount,
                 spaceCount: track.spaceCount,
-                eventCount: track.events.count
+                eventCount: track.events.count,
+                noteChecksum: noteChecksum(track)
             )
         }
     )
@@ -100,4 +102,42 @@ do {
 } catch {
     FileHandle.standardError.write(Data("tbt-inspect: \(error.localizedDescription)\n".utf8))
     exit(65)
+}
+
+private func noteChecksum(_ track: TBTTrack) -> String {
+    var hash: UInt64 = 0xcbf29ce484222325
+
+    func add(_ byte: UInt8) {
+        hash ^= UInt64(byte)
+        hash &*= 0x100000001b3
+    }
+
+    func add(_ value: Int) {
+        var bits = UInt64(bitPattern: Int64(value))
+        for _ in 0..<8 {
+            add(UInt8(bits & 0xff))
+            bits >>= 8
+        }
+    }
+
+    for event in track.events {
+        add(event.space)
+        add(event.notes.count)
+        for note in event.notes {
+            add(note.string)
+            switch note.value {
+            case let .fret(fret):
+                add(1)
+                add(fret)
+            case .muted:
+                add(2)
+            case .stopped:
+                add(3)
+            }
+            add(Int(note.effect?.rawValue ?? 0))
+        }
+        add(Int(event.topText?.unicodeScalars.first?.value ?? 0))
+        add(Int(event.bottomText?.unicodeScalars.first?.value ?? 0))
+    }
+    return String(format: "%016llx", hash)
 }
