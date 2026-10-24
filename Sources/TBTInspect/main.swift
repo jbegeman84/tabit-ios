@@ -31,19 +31,40 @@ struct Inspection: Encodable {
     let tracks: [Track]
 }
 
-guard CommandLine.arguments.count == 2 else {
+let arguments = Array(CommandLine.arguments.dropFirst())
+let path: String
+let roundTripOutputPath: String?
+
+if arguments.count == 1 {
+    path = arguments[0]
+    roundTripOutputPath = nil
+} else if arguments.count == 3, arguments[0] == "--round-trip" {
+    path = arguments[1]
+    roundTripOutputPath = arguments[2]
+} else {
     FileHandle.standardError.write(
-        Data("Usage: tbt-inspect <file.tbt>\n".utf8)
+        Data(
+            """
+            Usage:
+              tbt-inspect <file.tbt>
+              tbt-inspect --round-trip <input.tbt> <output.tbt>
+
+            """.utf8
+        )
     )
     exit(64)
 }
-
-let path = CommandLine.arguments[1]
 
 do {
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
     let document = try TBTDocument.parse(data)
     let score = try TBTScoreParser.parse(document)
+    if let roundTripOutputPath {
+        let savedData = try TBTScoreWriter.serialize(document: document, score: score)
+        try savedData.write(to: URL(fileURLWithPath: roundTripOutputPath), options: .atomic)
+        let reparsed = try TBTDocument.parse(savedData)
+        _ = try TBTScoreParser.parse(reparsed)
+    }
     let inspection = Inspection(
         path: path,
         fileLength: data.count,
