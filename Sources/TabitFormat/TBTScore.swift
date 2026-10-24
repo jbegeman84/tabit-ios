@@ -37,6 +37,18 @@ public struct TBTNoteEvent: Equatable, Identifiable, Sendable {
     public var bottomText: Character?
 
     public var id: Int { space }
+
+    public init(
+        space: Int,
+        notes: [TBTStringNote],
+        topText: Character?,
+        bottomText: Character?
+    ) {
+        self.space = space
+        self.notes = notes
+        self.topText = topText
+        self.bottomText = bottomText
+    }
 }
 
 public struct TBTStringNote: Equatable, Identifiable, Sendable {
@@ -51,6 +63,12 @@ public struct TBTStringNote: Equatable, Identifiable, Sendable {
     public var effect: TBTNoteEffect?
 
     public var id: Int { string }
+
+    public init(string: Int, value: Value, effect: TBTNoteEffect?) {
+        self.string = string
+        self.value = value
+        self.effect = effect
+    }
 }
 
 public enum TBTNoteEffect: UInt8, Equatable, Sendable {

@@ -4,7 +4,7 @@ import Testing
 
 struct TBTDocumentTests {
     private let fixture = Data(base64Encoded: "VEJUcrgHAzIuMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFgAAAAAAAACBAAAAAAAAAHjaY2EISS0uYWNwLCrJLC4BABl0BCJ42mNgZGJmYWVj5+Dk4ubh5eMXEBQSFhEVE5eQlJKWkZWTZ6BQHgD6UAXR")!
-    private let editableFixture = Data(base64Encoded: "VEJUcngBAzIuMAALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAHgAQwAAALH++VqVAAAADJ8SxnjaY2FgYGCTZkhggAIHCYb/DAjAyRCSWlyiEJyfl87G4FhUkllcwsrgmJNUmgvklpZk5BexMzjn5+am5pUAAH+XDwN42mNhAAEmBsZmfzALAAXbANo=")!
+    private let editableFixture = Data(base64Encoded: "VEJUcngBAzIuMAALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAHgAQwAAAInYnqqVAAAA3bSSYXjaY2FgYGCTZkhggAAHCYb/DAjAyRCSWlyiEJyfl87G4FhUkllcwsrgmJNUmgvklpZk5BexMzjn5+am5pUAAH8RDwN42mNhAAEmBsZmfzALAAXbANo=")!
 
     @Test func parsesHeaderAndConcatenatedPayloads() throws {
         let document = try TBTDocument.parse(fixture)
