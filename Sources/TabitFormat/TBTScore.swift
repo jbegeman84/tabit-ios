@@ -23,6 +23,8 @@ public struct TBTTrack: Equatable, Identifiable, Sendable {
     public var tuning: [Int]
     public var isDrumTrack: Bool
     public var events: [TBTNoteEvent]
+    /// Start position of each physical space on the shared 1/16-note timeline.
+    public var timelinePositions: [Double]
 
     public var instrumentName: String {
         if isDrumTrack { return "Drums" }

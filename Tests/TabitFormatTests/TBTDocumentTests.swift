@@ -87,6 +87,8 @@ struct TBTDocumentTests {
             2, 0, // two delta pairs
             1, 0x83, // fret 3 on string 0
             79, 0, // remaining note slots
+            4, 0, // four alternate-time delta pairs
+            2, 1, 1, 2, 1, 3, 4, 1, // space 1 advances by 2/3
             0, 0, 0, 0, // empty track-effect chunk
         ])
         let header = TBTHeader(
@@ -94,7 +96,7 @@ struct TBTDocumentTests {
             tempo: 120,
             trackCount: 1,
             version: "2.0",
-            featureBitfield: 0x0b,
+            featureBitfield: 0x1b,
             barCount: 1,
             spaceCount: 0,
             lastNonEmptySpace: 0,
@@ -123,6 +125,7 @@ struct TBTDocumentTests {
         #expect(score.tracks[0].events[0].notes == [
             TBTStringNote(string: 0, value: .fret(3), effect: nil),
         ])
+        #expect(score.tracks[0].timelinePositions == [0, 1, 1.0 + 2.0 / 3.0, 2.0 + 2.0 / 3.0])
     }
 
     @Test func editsAndRoundTripsANote() throws {

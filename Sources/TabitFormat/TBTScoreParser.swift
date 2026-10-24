@@ -29,6 +29,7 @@ public enum TBTScoreParser {
         var tracks = metadata.tracks
         for index in tracks.indices {
             tracks[index].events = body.events[index]
+            tracks[index].timelinePositions = body.timelinePositions[index]
         }
 
         return TBTScore(
@@ -147,7 +148,8 @@ public enum TBTScoreParser {
                 transpose: track.transpose,
                 tuning: track.tuning,
                 isDrumTrack: track.drums,
-                events: []
+                events: [],
+                timelinePositions: (0..<track.spaceCount).map(Double.init)
             )
         }
 
@@ -167,7 +169,11 @@ public enum TBTScoreParser {
         featureBitfield: UInt8,
         barCount: Int,
         tracks: [TBTTrack]
-    ) throws -> (barLines: [TBTBarLine], events: [[TBTNoteEvent]]) {
+    ) throws -> (
+        barLines: [TBTBarLine],
+        events: [[TBTNoteEvent]],
+        timelinePositions: [[Double]]
+    ) {
         var reader = ByteCursor(data)
         let barLines: [TBTBarLine]
 
@@ -250,9 +256,24 @@ public enum TBTScoreParser {
             allEvents.append(events)
         }
 
+        var timelinePositions = tracks.map { track in
+            (0..<track.spaceCount).map(Double.init)
+        }
         if featureBitfield & 0x10 != 0 {
-            for track in tracks {
-                _ = try reader.readExpandedDeltaList(expectedCount: track.spaceCount * 2)
+            for (trackIndex, track) in tracks.enumerated() {
+                let timing = try reader.readExpandedDeltaList(expectedCount: track.spaceCount * 2)
+                var position = 0.0
+                var positions: [Double] = []
+                positions.reserveCapacity(track.spaceCount)
+                for space in 0..<track.spaceCount {
+                    positions.append(position)
+                    let numerator = Int(timing[space * 2])
+                    let denominator = Int(timing[space * 2 + 1])
+                    position += denominator == 0
+                        ? 1
+                        : Double(numerator) / Double(denominator)
+                }
+                timelinePositions[trackIndex] = positions
             }
         }
 
@@ -266,7 +287,7 @@ public enum TBTScoreParser {
         guard reader.isAtEnd else {
             throw TBTError.malformedScore("unexpected body bytes at offset \(reader.offset)")
         }
-        return (barLines, allEvents)
+        return (barLines, allEvents, timelinePositions)
     }
 
     private static func asciiCharacter(_ byte: UInt8) -> Character? {

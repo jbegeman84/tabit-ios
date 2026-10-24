@@ -409,8 +409,18 @@ private struct TablatureSystem: View {
                 )
             }
 
-            for barLine in barLines where spaces.contains(barLine.space) {
-                let x = labelWidth + CGFloat(barLine.space - spaces.lowerBound) * columnWidth
+            let barLineMap = Dictionary(uniqueKeysWithValues: barLines.map { ($0.space, $0) })
+            for physicalSpace in spaces {
+                let timelinePosition = timelinePosition(at: physicalSpace)
+                let plainSpace = Int(floor(timelinePosition))
+                let previousPlainSpace = physicalSpace > 0
+                    ? Int(floor(timelinePosition(at: physicalSpace - 1)))
+                    : -1
+                guard plainSpace != previousPlainSpace,
+                      let barLine = barLineMap[plainSpace] else { continue }
+
+                let x = labelWidth
+                    + CGFloat(physicalSpace - spaces.lowerBound) * columnWidth
                 var path = Path()
                 path.move(to: CGPoint(x: x, y: 16))
                 path.addLine(
@@ -500,6 +510,13 @@ private struct TablatureSystem: View {
         let midi = standard[string] + track.tuning[string] + track.transpose
         let names = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"]
         return names[(midi % 12 + 12) % 12]
+    }
+
+    private func timelinePosition(at space: Int) -> Double {
+        guard track.timelinePositions.indices.contains(space) else {
+            return Double(space)
+        }
+        return track.timelinePositions[space]
     }
 }
 

@@ -101,7 +101,8 @@ public struct TBTDocument: Equatable, Sendable {
             )
         }
 
-        let versionBytes = data[7..<min(16, data.count)].prefix { $0 != 0 }
+        let versionLength = min(Int(data[6]), 5)
+        let versionBytes = data[7..<(7 + versionLength)]
         let version = String(bytes: versionBytes, encoding: .ascii) ?? ""
         let firstStreamLength = data.littleEndianUInt32(at: 0x30)
         let extendedTempo = data.littleEndianUInt16(at: 0x2e)
