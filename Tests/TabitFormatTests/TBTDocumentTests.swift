@@ -38,6 +38,21 @@ struct TBTDocumentTests {
         #expect(document.payloads[1].printableStrings.isEmpty)
     }
 
+    @Test func createsAReadableSummary() throws {
+        let document = try TBTDocument.parse(fixture)
+        let summary = TBTSummary(document: document, fileName: "Example.tbt")
+
+        #expect(summary.title == "Test")
+        #expect(summary.fileName == "Example.tbt")
+        #expect(summary.formatIdentifier == "TBTr")
+        #expect(summary.version == "2.0")
+        #expect(summary.fileLength == 129)
+        #expect(summary.recoveredText == ["Test", "Artist"])
+        #expect(summary.payloads.count == 2)
+        #expect(summary.payloads[0].compressedLength == 22)
+        #expect(summary.payloads[1].decompressedLength == 96)
+    }
+
     @Test func rejectsInvalidSignature() {
         var invalid = fixture
         invalid[0] = 0
