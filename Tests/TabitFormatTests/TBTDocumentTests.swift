@@ -142,6 +142,13 @@ struct TBTDocumentTests {
         #expect(savedDocument.header.declaredFileLength == savedData.count)
     }
 
+    @Test func identifiesGuitarProgramsThatNeedAmplifierDistortion() {
+        #expect(!GeneralMIDI.usesDistortionEffect(forProgram: 28))
+        #expect(GeneralMIDI.usesDistortionEffect(forProgram: 29))
+        #expect(GeneralMIDI.usesDistortionEffect(forProgram: 30))
+        #expect(!GeneralMIDI.usesDistortionEffect(forProgram: 31))
+    }
+
     @Test func rejectsInvalidSignature() {
         var invalid = fixture
         invalid[0] = 0

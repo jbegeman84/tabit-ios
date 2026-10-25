@@ -20,6 +20,7 @@ final class TBTPlaybackController: NSObject, ObservableObject {
 
     private let engine = AVAudioEngine()
     private var samplers: [Int: AVAudioUnitSampler] = [:]
+    private var distortionEffects: [Int: AVAudioUnitDistortion] = [:]
     private var activeNotes: [StringKey: UInt8] = [:]
     private var scheduledEvents: [ScheduledEvent] = []
     private var nextEventIndex = 0
@@ -36,11 +37,40 @@ final class TBTPlaybackController: NSObject, ObservableObject {
             : score.tracks.filter { $0.id == selectedTrack }
         guard !tracks.isEmpty else { return }
 
+        try configureAudioSession()
+        guard let soundBankURL = Bundle.main.url(
+            forResource: "GeneralUser-GS",
+            withExtension: "sf2"
+        ) else {
+            throw PlaybackError.missingSoundBank
+        }
+
         for track in tracks {
             let sampler = AVAudioUnitSampler()
             engine.attach(sampler)
-            engine.connect(sampler, to: engine.mainMixerNode, format: nil)
-            sampler.sendProgramChange(UInt8(clamping: track.midiProgram), onChannel: 0)
+            try sampler.loadSoundBankInstrument(
+                at: soundBankURL,
+                program: UInt8(clamping: track.isDrumTrack ? 0 : track.midiProgram),
+                bankMSB: track.isDrumTrack
+                    ? UInt8(kAUSampler_DefaultPercussionBankMSB)
+                    : UInt8(kAUSampler_DefaultMelodicBankMSB),
+                bankLSB: UInt8(kAUSampler_DefaultBankLSB)
+            )
+            sampler.pan = Float(track.pan - 64) * (100 / 64)
+
+            if GeneralMIDI.usesDistortionEffect(forProgram: track.midiProgram),
+               !track.isDrumTrack {
+                let distortion = AVAudioUnitDistortion()
+                distortion.loadFactoryPreset(.multiDistortedCubed)
+                distortion.preGain = -8
+                distortion.wetDryMix = 35
+                engine.attach(distortion)
+                engine.connect(sampler, to: distortion, format: nil)
+                engine.connect(distortion, to: engine.mainMixerNode, format: nil)
+                distortionEffects[track.id] = distortion
+            } else {
+                engine.connect(sampler, to: engine.mainMixerNode, format: nil)
+            }
             samplers[track.id] = sampler
             scheduledEvents.append(contentsOf: track.events.map { event in
                 ScheduledEvent(
@@ -94,10 +124,16 @@ final class TBTPlaybackController: NSObject, ObservableObject {
             engine.stop()
         }
         for sampler in samplers.values {
-            engine.disconnectNodeInput(sampler)
+            engine.disconnectNodeOutput(sampler)
             engine.detach(sampler)
         }
+        for distortion in distortionEffects.values {
+            engine.disconnectNodeOutput(distortion)
+            engine.disconnectNodeInput(distortion)
+            engine.detach(distortion)
+        }
         samplers.removeAll()
+        distortionEffects.removeAll()
         scheduledEvents.removeAll()
         nextEventIndex = 0
         isPlaying = false
@@ -178,5 +214,22 @@ final class TBTPlaybackController: NSObject, ObservableObject {
         let openNote = standard.indices.contains(string) ? standard[string] : 40
         let tuning = track.tuning.indices.contains(string) ? track.tuning[string] : 0
         return UInt8(clamping: openNote + tuning + track.transpose + fret)
+    }
+
+    private func configureAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try session.setActive(true)
+    }
+}
+
+private enum PlaybackError: LocalizedError {
+    case missingSoundBank
+
+    var errorDescription: String? {
+        switch self {
+        case .missingSoundBank:
+            return "The General MIDI sound bank is missing from the app."
+        }
     }
 }

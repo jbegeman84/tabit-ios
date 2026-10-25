@@ -139,4 +139,8 @@ public enum GeneralMIDI {
         guard names.indices.contains(program) else { return "MIDI Program \(program + 1)" }
         return names[program]
     }
+
+    public static func usesDistortionEffect(forProgram program: Int) -> Bool {
+        (29...30).contains(program)
+    }
 }

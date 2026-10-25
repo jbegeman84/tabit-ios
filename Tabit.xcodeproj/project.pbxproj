@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18A9561C5A5B4B7D8D0349A1 /* GeneralUser-GS.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = 18A9561C5A5B4B7D8D0349B1 /* GeneralUser-GS.sf2 */; };
+		18A9561C5A5B4B7D8D0349A2 /* GeneralUser-GS-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 18A9561C5A5B4B7D8D0349B2 /* GeneralUser-GS-LICENSE.txt */; };
 		3FF74CCE1EC19593E4B1ADDA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4EB38CFD8863041FCD833D /* ContentView.swift */; };
 		4D1286D75BD1FDA14047F875 /* TBTPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7446DDC958DC7456BBFDA427 /* TBTPlaybackController.swift */; };
 		8D523AE91BB7AD7E16F6741E /* TabitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191870F8BB0174AA535B9C9E /* TabitApp.swift */; };
@@ -14,6 +16,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		18A9561C5A5B4B7D8D0349B1 /* GeneralUser-GS.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GeneralUser-GS.sf2"; sourceTree = "<group>"; };
+		18A9561C5A5B4B7D8D0349B2 /* GeneralUser-GS-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GeneralUser-GS-LICENSE.txt"; sourceTree = "<group>"; };
 		191870F8BB0174AA535B9C9E /* TabitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabitApp.swift; sourceTree = "<group>"; };
 		55D411158F43F45230E76E9A /* Tabit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tabit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6E49CD68A0BF181CF9F040CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -34,6 +38,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		18A9561C5A5B4B7D8D0349C1 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				18A9561C5A5B4B7D8D0349B1 /* GeneralUser-GS.sf2 */,
+				18A9561C5A5B4B7D8D0349B2 /* GeneralUser-GS-LICENSE.txt */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		1808351EAA4A438565821F50 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
@@ -56,6 +69,7 @@
 			children = (
 				7D4EB38CFD8863041FCD833D /* ContentView.swift */,
 				6E49CD68A0BF181CF9F040CE /* Info.plist */,
+				18A9561C5A5B4B7D8D0349C1 /* Resources */,
 				191870F8BB0174AA535B9C9E /* TabitApp.swift */,
 				7446DDC958DC7456BBFDA427 /* TBTPlaybackController.swift */,
 			);
@@ -79,6 +93,7 @@
 			buildPhases = (
 				C1898A57B57E55E9AAF9BAD9 /* Sources */,
 				9FB6B10AD95559F62D7AA190 /* Frameworks */,
+				18A9561C5A5B4B7D8D0349D1 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -124,6 +139,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		18A9561C5A5B4B7D8D0349D1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				18A9561C5A5B4B7D8D0349A1 /* GeneralUser-GS.sf2 in Resources */,
+				18A9561C5A5B4B7D8D0349A2 /* GeneralUser-GS-LICENSE.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C1898A57B57E55E9AAF9BAD9 /* Sources */ = {
