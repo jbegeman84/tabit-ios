@@ -61,6 +61,7 @@ public enum TBTScoreParser {
         var pan = 64
         var transpose = 0
         var tuning: [Int] = []
+        var midiChannel = -1
         var drums = false
     }
 
@@ -115,7 +116,9 @@ public enum TBTScoreParser {
         }
         try reader.skip(trackCount) // highest note
         try reader.skip(trackCount) // display MIDI note numbers
-        try reader.skip(trackCount) // MIDI channel
+        for index in tracks.indices {
+            tracks[index].midiChannel = Int(try reader.readInt8())
+        }
         try reader.skip(trackCount) // top-line text enabled
         try reader.skip(trackCount) // bottom-line text enabled
 
@@ -147,7 +150,7 @@ public enum TBTScoreParser {
                 pan: track.pan,
                 transpose: track.transpose,
                 tuning: track.tuning,
-                isDrumTrack: track.drums,
+                isDrumTrack: track.drums || track.midiChannel == 9,
                 events: [],
                 timelinePositions: (0..<track.spaceCount).map(Double.init)
             )

@@ -126,6 +126,19 @@ struct TBTDocumentTests {
             TBTStringNote(string: 0, value: .fret(3), effect: nil),
         ])
         #expect(score.tracks[0].timelinePositions == [0, 1, 1.0 + 2.0 / 3.0, 2.0 + 2.0 / 3.0])
+
+        metadata[18] = 9
+        let percussionDocument = TBTDocument(
+            header: header,
+            payloads: [
+                TBTPayload(compressedRange: 64..<64, data: metadata),
+                TBTPayload(compressedRange: 64..<64, data: body),
+            ],
+            originalData: Data()
+        )
+        let percussionScore = try TBTScoreParser.parse(percussionDocument)
+        #expect(percussionScore.tracks[0].isDrumTrack)
+        #expect(percussionScore.tracks[0].instrumentName == "Drums")
     }
 
     @Test func editsAndRoundTripsANote() throws {
