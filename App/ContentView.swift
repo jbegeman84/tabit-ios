@@ -306,9 +306,7 @@ private struct TablatureView: View {
                     of: Int(playback.currentTimelinePosition.rounded(.down))
                 ) { _, space in
                     guard playback.isPlaying else { return }
-                    withAnimation(.linear(duration: 0.08)) {
-                        proxy.scrollTo(TimelineAnchor(space: space), anchor: .center)
-                    }
+                    proxy.scrollTo(TimelineAnchor(space: space), anchor: .center)
                 }
             }
         }
@@ -391,9 +389,21 @@ private enum TimelineLayout {
     static let columnWidth: CGFloat = 12
     static let labelWidth: CGFloat = 72
     static let lineHeight: CGFloat = 22
+    static let tileWidth: CGFloat = 768
 
     static func width(for timelineLength: Double) -> CGFloat {
         labelWidth + CGFloat(timelineLength) * columnWidth + 20
+    }
+
+    static func tileCount(for timelineLength: Double) -> Int {
+        Int(ceil(width(for: timelineLength) / tileWidth))
+    }
+
+    static func width(ofTile index: Int, timelineLength: Double) -> CGFloat {
+        min(
+            tileWidth,
+            width(for: timelineLength) - CGFloat(index) * tileWidth
+        )
     }
 }
 
@@ -425,17 +435,80 @@ private struct TimelineRuler: View {
     let playheadPosition: Double
 
     var body: some View {
+        ZStack(alignment: .topLeading) {
+            StaticTimelineRuler(
+                timelineLength: timelineLength,
+                tempo: tempo
+            )
+            .equatable()
+
+            Rectangle()
+                .fill(.blue)
+                .frame(width: 2, height: 34)
+                .offset(
+                    x: TimelineLayout.labelWidth
+                        + CGFloat(playheadPosition) * TimelineLayout.columnWidth
+                )
+        }
+        .frame(
+            width: TimelineLayout.width(for: timelineLength),
+            height: 36
+        )
+        .accessibilityLabel("Shared song timeline")
+    }
+}
+
+private struct StaticTimelineRuler: View, Equatable {
+    let timelineLength: Double
+    let tempo: Int
+
+    var body: some View {
+        LazyHStack(spacing: 0) {
+            ForEach(0..<TimelineLayout.tileCount(for: timelineLength), id: \.self) { index in
+                TimelineRulerTile(
+                    index: index,
+                    timelineLength: timelineLength,
+                    tempo: tempo
+                )
+                .equatable()
+            }
+        }
+        .frame(
+            width: TimelineLayout.width(for: timelineLength),
+            height: 36,
+            alignment: .leading
+        )
+    }
+}
+
+private struct TimelineRulerTile: View, Equatable {
+    let index: Int
+    let timelineLength: Double
+    let tempo: Int
+
+    private var origin: CGFloat {
+        CGFloat(index) * TimelineLayout.tileWidth
+    }
+
+    var body: some View {
         Canvas { context, size in
             var baseline = Path()
-            baseline.move(to: CGPoint(x: TimelineLayout.labelWidth, y: 28))
+            baseline.move(
+                to: CGPoint(
+                    x: max(0, TimelineLayout.labelWidth - origin),
+                    y: 28
+                )
+            )
             baseline.addLine(to: CGPoint(x: size.width, y: 28))
             context.stroke(baseline, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
 
             let spacesPerSecond = Double(max(tempo, 30)) * 4 / 60
             let duration = timelineLength / spacesPerSecond
             for second in stride(from: 0, through: Int(duration.rounded(.up)), by: 10) {
-                let x = TimelineLayout.labelWidth
+                let globalX = TimelineLayout.labelWidth
                     + CGFloat(Double(second) * spacesPerSecond) * TimelineLayout.columnWidth
+                guard globalX >= origin, globalX < origin + size.width else { continue }
+                let x = globalX - origin
                 var tick = Path()
                 tick.move(to: CGPoint(x: x, y: 20))
                 tick.addLine(to: CGPoint(x: x, y: 32))
@@ -448,19 +521,11 @@ private struct TimelineRuler: View {
                     anchor: .leading
                 )
             }
-
-            let playheadX = TimelineLayout.labelWidth
-                + CGFloat(playheadPosition) * TimelineLayout.columnWidth
-            var playhead = Path()
-            playhead.move(to: CGPoint(x: playheadX, y: 0))
-            playhead.addLine(to: CGPoint(x: playheadX, y: 34))
-            context.stroke(playhead, with: .color(.blue), lineWidth: 2)
         }
         .frame(
-            width: TimelineLayout.width(for: timelineLength),
+            width: TimelineLayout.width(ofTile: index, timelineLength: timelineLength),
             height: 36
         )
-        .accessibilityLabel("Shared song timeline")
     }
 }
 
@@ -484,93 +549,26 @@ private struct TrackTimelineView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Canvas { context, size in
-                for line in 0..<track.stringCount {
-                    let y = CGFloat(line) * TimelineLayout.lineHeight + 18
-                    var path = Path()
-                    path.move(to: CGPoint(x: TimelineLayout.labelWidth, y: y))
-                    path.addLine(to: CGPoint(x: size.width - 8, y: y))
-                    context.stroke(path, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
-
-                    let string = track.stringCount - line - 1
-                    context.draw(
-                        Text(tuningLabel(for: string))
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary),
-                        at: CGPoint(x: TimelineLayout.labelWidth - 14, y: y)
-                    )
-                }
-
-                for barLine in barLines {
-                    let x = TimelineLayout.labelWidth
-                        + CGFloat(barLine.space) * TimelineLayout.columnWidth
-                    var path = Path()
-                    path.move(to: CGPoint(x: x, y: 10))
-                    path.addLine(
-                        to: CGPoint(
-                            x: x,
-                            y: CGFloat(track.stringCount - 1) * TimelineLayout.lineHeight + 26
-                        )
-                    )
-                    context.stroke(
-                        path,
-                        with: .color(.primary.opacity(0.7)),
-                        lineWidth: barLine.isDouble ? 3 : 1.25
-                    )
-                }
-
-                for event in track.events {
-                    let x = TimelineLayout.labelWidth
-                        + CGFloat(timelinePosition(at: event.space)) * TimelineLayout.columnWidth
-                        + TimelineLayout.columnWidth / 2
-
-                    for note in event.notes {
-                        let line = track.stringCount - note.string - 1
-                        let y = CGFloat(line) * TimelineLayout.lineHeight + 18
-                        let label: String
-                        switch note.value {
-                        case let .fret(fret): label = String(fret)
-                        case .muted: label = "x"
-                        case .stopped: label = "*"
-                        }
-
-                        let text = Text(label)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.primary)
-                        let textSize = context.resolve(text).measure(in: size)
-                        let rect = CGRect(
-                            x: x - textSize.width / 2 - 1.5,
-                            y: y - textSize.height / 2 - 1,
-                            width: textSize.width + 3,
-                            height: textSize.height + 2
-                        )
-                        context.fill(
-                            Path(roundedRect: rect, cornerRadius: 2),
-                            with: .color(Color(uiColor: .secondarySystemGroupedBackground))
-                        )
-                        context.draw(text, at: CGPoint(x: x, y: y))
-                    }
-                }
-
-                let playheadX = TimelineLayout.labelWidth
-                    + CGFloat(playheadPosition) * TimelineLayout.columnWidth
-                var playhead = Path()
-                playhead.move(to: CGPoint(x: playheadX, y: 8))
-                playhead.addLine(
-                    to: CGPoint(
-                        x: playheadX,
-                        y: CGFloat(track.stringCount - 1) * TimelineLayout.lineHeight + 28
-                    )
+            ZStack(alignment: .topLeading) {
+                StaticTrackTimeline(
+                    track: track,
+                    barLines: barLines,
+                    timelineLength: timelineLength
                 )
-                context.stroke(playhead, with: .color(.blue.opacity(0.9)), lineWidth: 2)
+                .equatable()
 
-                context.draw(
-                    Text(track.instrumentName)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary),
-                    at: CGPoint(x: 4, y: 6),
-                    anchor: .topLeading
-                )
+                Rectangle()
+                    .fill(.blue.opacity(0.9))
+                    .frame(
+                        width: 2,
+                        height: CGFloat(track.stringCount - 1)
+                            * TimelineLayout.lineHeight + 20
+                    )
+                    .offset(
+                        x: TimelineLayout.labelWidth
+                            + CGFloat(playheadPosition) * TimelineLayout.columnWidth,
+                        y: 8
+                    )
             }
             .frame(
                 width: TimelineLayout.width(for: timelineLength),
@@ -617,6 +615,140 @@ private struct TrackTimelineView: View {
         return target - positions[lower - 1] <= positions[lower] - target
             ? lower - 1
             : lower
+    }
+
+}
+
+private struct StaticTrackTimeline: View, Equatable {
+    let track: TBTTrack
+    let barLines: [TBTBarLine]
+    let timelineLength: Double
+
+    var body: some View {
+        LazyHStack(spacing: 0) {
+            ForEach(0..<TimelineLayout.tileCount(for: timelineLength), id: \.self) { index in
+                TrackTimelineTile(
+                    index: index,
+                    track: track,
+                    barLines: barLines,
+                    timelineLength: timelineLength
+                )
+                .equatable()
+            }
+        }
+        .frame(
+            width: TimelineLayout.width(for: timelineLength),
+            height: CGFloat(track.stringCount) * TimelineLayout.lineHeight + 18,
+            alignment: .leading
+        )
+    }
+}
+
+private struct TrackTimelineTile: View, Equatable {
+    let index: Int
+    let track: TBTTrack
+    let barLines: [TBTBarLine]
+    let timelineLength: Double
+
+    private var origin: CGFloat {
+        CGFloat(index) * TimelineLayout.tileWidth
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            for line in 0..<track.stringCount {
+                let y = CGFloat(line) * TimelineLayout.lineHeight + 18
+                var path = Path()
+                path.move(
+                    to: CGPoint(
+                        x: max(0, TimelineLayout.labelWidth - origin),
+                        y: y
+                    )
+                )
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                context.stroke(path, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
+
+                let tuningX = TimelineLayout.labelWidth - 14
+                if tuningX >= origin, tuningX < origin + size.width {
+                    let string = track.stringCount - line - 1
+                    context.draw(
+                        Text(tuningLabel(for: string))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary),
+                        at: CGPoint(x: tuningX - origin, y: y)
+                    )
+                }
+            }
+
+            for barLine in barLines {
+                let globalX = TimelineLayout.labelWidth
+                    + CGFloat(barLine.space) * TimelineLayout.columnWidth
+                guard globalX >= origin, globalX < origin + size.width else { continue }
+                let x = globalX - origin
+                var path = Path()
+                path.move(to: CGPoint(x: x, y: 10))
+                path.addLine(
+                    to: CGPoint(
+                        x: x,
+                        y: CGFloat(track.stringCount - 1) * TimelineLayout.lineHeight + 26
+                    )
+                )
+                context.stroke(
+                    path,
+                    with: .color(.primary.opacity(0.7)),
+                    lineWidth: barLine.isDouble ? 3 : 1.25
+                )
+            }
+
+            for event in track.events {
+                let globalX = TimelineLayout.labelWidth
+                    + CGFloat(timelinePosition(at: event.space)) * TimelineLayout.columnWidth
+                    + TimelineLayout.columnWidth / 2
+                guard globalX >= origin, globalX < origin + size.width else { continue }
+                let x = globalX - origin
+
+                for note in event.notes {
+                    let line = track.stringCount - note.string - 1
+                    let y = CGFloat(line) * TimelineLayout.lineHeight + 18
+                    let label: String
+                    switch note.value {
+                    case let .fret(fret): label = String(fret)
+                    case .muted: label = "x"
+                    case .stopped: label = "*"
+                    }
+
+                    let text = Text(label)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.primary)
+                    let textSize = context.resolve(text).measure(in: size)
+                    let rect = CGRect(
+                        x: x - textSize.width / 2 - 1.5,
+                        y: y - textSize.height / 2 - 1,
+                        width: textSize.width + 3,
+                        height: textSize.height + 2
+                    )
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: 2),
+                        with: .color(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
+                    context.draw(text, at: CGPoint(x: x, y: y))
+                }
+            }
+
+            if index == 0 {
+                context.draw(
+                    Text(track.instrumentName)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary),
+                    at: CGPoint(x: 4, y: 6),
+                    anchor: .topLeading
+                )
+            }
+        }
+        .frame(
+            width: TimelineLayout.width(ofTile: index, timelineLength: timelineLength),
+            height: CGFloat(track.stringCount) * TimelineLayout.lineHeight + 18
+        )
     }
 
     private func tuningLabel(for string: Int) -> String {
