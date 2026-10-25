@@ -157,7 +157,7 @@ private struct EmptyLibraryView: View {
 private struct SongDetailView: View {
     @Binding var song: LoadedSong
     let saveCopy: () -> Void
-    @State private var selectedTrack = 0
+    @State private var selectedTrack = -1
     @State private var section = 0
 
     var body: some View {
@@ -216,87 +216,87 @@ private struct TablatureView: View {
         selectedTrack == -1 ? score.tracks : score.tracks.filter { $0.id == selectedTrack }
     }
 
+    private var timelineLength: Double {
+        let trackEnd = score.tracks.compactMap {
+            $0.timelinePositions.last.map { $0 + 1 }
+        }.max() ?? 1
+        let barEnd = Double((score.barLines.map(\.space).max() ?? 0) + 1)
+        return max(trackEnd, barEnd)
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Picker("Instrument", selection: $selectedTrack) {
-                        Text("All Tracks").tag(-1)
-                        ForEach(score.tracks) { track in
-                            Text("\(track.name) · \(track.instrumentName)").tag(track.id)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Picker("Instrument", selection: $selectedTrack) {
+                    Text("All Tracks").tag(-1)
+                    ForEach(score.tracks) { track in
+                        Text("\(track.name) · \(track.instrumentName)").tag(track.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("trackPicker")
+
+                Spacer()
+
+                Button {
+                    if playback.isPlaying {
+                        playback.stop()
+                    } else {
+                        do {
+                            try playback.play(
+                                score: score,
+                                selectedTrack: selectedTrack
+                            )
+                        } catch {
+                            playbackError = error.localizedDescription
                         }
                     }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("trackPicker")
+                } label: {
+                    Label(
+                        playback.isPlaying ? "Stop" : "Play",
+                        systemImage: playback.isPlaying ? "stop.fill" : "play.fill"
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("playbackButton")
+            }
+            .padding(.horizontal)
 
-                    Spacer()
+            Label(
+                "Drag horizontally to move every track together · tap a string to edit",
+                systemImage: "arrow.left.and.right"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal)
 
-                    Button {
-                        if playback.isPlaying {
-                            playback.stop()
-                        } else {
-                            do {
-                                try playback.play(
-                                    score: score,
-                                    selectedTrack: selectedTrack
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    TimelineRuler(
+                        timelineLength: timelineLength,
+                        tempo: score.tempo
+                    )
+
+                    ForEach(displayedTracks) { track in
+                        TrackTimelineView(
+                            track: track,
+                            barLines: score.barLines,
+                            timelineLength: timelineLength,
+                            editNote: { space, string in
+                                editTarget = makeEditTarget(
+                                    track: track,
+                                    space: space,
+                                    string: string
                                 )
-                            } catch {
-                                playbackError = error.localizedDescription
                             }
-                        }
-                    } label: {
-                        Label(
-                            playback.isPlaying ? "Stop" : "Play",
-                            systemImage: playback.isPlaying ? "stop.fill" : "play.fill"
                         )
                     }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("playbackButton")
                 }
-                .padding(.horizontal)
-
-                Label("Tap a string position to add or edit a note", systemImage: "hand.tap")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-
-                ForEach(displayedTracks) { track in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(track.name)
-                                    .font(.headline)
-                                Text(track.instrumentName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text("\(track.stringCount) strings")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal)
-
-                        LazyVStack(spacing: 10) {
-                            ForEach(systemRanges(for: track), id: \.lowerBound) { range in
-                                TablatureSystem(
-                                    track: track,
-                                    barLines: score.barLines,
-                                    spaces: range,
-                                    editNote: { space, string in
-                                        editTarget = makeEditTarget(
-                                            track: track,
-                                            space: space,
-                                            string: string
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
+                .padding(.horizontal, 8)
+                .padding(.bottom)
             }
-            .padding(.vertical)
+            .scrollIndicators(.visible)
+            .accessibilityIdentifier("lockedTrackTimeline")
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityIdentifier("tablatureView")
@@ -319,12 +319,6 @@ private struct TablatureView: View {
                 setNote(target: target, value: value)
             }
             .presentationDetents([.medium])
-        }
-    }
-
-    private func systemRanges(for track: TBTTrack) -> [Range<Int>] {
-        stride(from: 0, to: track.spaceCount, by: 15).map {
-            $0..<min($0 + 15, track.spaceCount)
         }
     }
 
@@ -379,126 +373,193 @@ private struct TablatureView: View {
     }
 }
 
-private struct TablatureSystem: View {
-    let track: TBTTrack
-    let barLines: [TBTBarLine]
-    let spaces: Range<Int>
-    let editNote: (Int, Int) -> Void
+private enum TimelineLayout {
+    static let columnWidth: CGFloat = 12
+    static let labelWidth: CGFloat = 72
+    static let lineHeight: CGFloat = 22
 
-    private let columnWidth: CGFloat = 22
-    private let labelWidth: CGFloat = 34
-    private let lineHeight: CGFloat = 22
+    static func width(for timelineLength: Double) -> CGFloat {
+        labelWidth + CGFloat(timelineLength) * columnWidth + 20
+    }
+}
+
+private struct TimelineRuler: View {
+    let timelineLength: Double
+    let tempo: Int
 
     var body: some View {
         Canvas { context, size in
-            let eventMap = Dictionary(uniqueKeysWithValues: track.events.map { ($0.space, $0) })
+            var baseline = Path()
+            baseline.move(to: CGPoint(x: TimelineLayout.labelWidth, y: 28))
+            baseline.addLine(to: CGPoint(x: size.width, y: 28))
+            context.stroke(baseline, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
 
-            for line in 0..<track.stringCount {
-                let y = CGFloat(line) * lineHeight + 24
-                var path = Path()
-                path.move(to: CGPoint(x: labelWidth, y: y))
-                path.addLine(to: CGPoint(x: size.width - 8, y: y))
-                context.stroke(path, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
-
-                let string = track.stringCount - line - 1
+            let spacesPerSecond = Double(max(tempo, 30)) * 4 / 60
+            let duration = timelineLength / spacesPerSecond
+            for second in stride(from: 0, through: Int(duration.rounded(.up)), by: 10) {
+                let x = TimelineLayout.labelWidth
+                    + CGFloat(Double(second) * spacesPerSecond) * TimelineLayout.columnWidth
+                var tick = Path()
+                tick.move(to: CGPoint(x: x, y: 20))
+                tick.addLine(to: CGPoint(x: x, y: 32))
+                context.stroke(tick, with: .color(.secondary), lineWidth: 1)
                 context.draw(
-                    Text(tuningLabel(for: string))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    Text(String(format: "%d:%02d", second / 60, second % 60))
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary),
-                    at: CGPoint(x: 14, y: y)
+                    at: CGPoint(x: x + 3, y: 10),
+                    anchor: .leading
                 )
             }
-
-            let barLineMap = Dictionary(uniqueKeysWithValues: barLines.map { ($0.space, $0) })
-            for physicalSpace in spaces {
-                let currentPosition = timelinePosition(at: physicalSpace)
-                let plainSpace = Int(floor(currentPosition))
-                let previousPlainSpace = physicalSpace > 0
-                    ? Int(floor(timelinePosition(at: physicalSpace - 1)))
-                    : -1
-                guard plainSpace != previousPlainSpace,
-                      let barLine = barLineMap[plainSpace] else { continue }
-
-                let x = labelWidth
-                    + CGFloat(physicalSpace - spaces.lowerBound) * columnWidth
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 16))
-                path.addLine(
-                    to: CGPoint(
-                        x: x,
-                        y: CGFloat(track.stringCount - 1) * lineHeight + 32
-                    )
-                )
-                context.stroke(
-                    path,
-                    with: .color(.primary.opacity(0.8)),
-                    lineWidth: barLine.isDouble ? 3 : 1.5
-                )
-            }
-
-            for space in spaces {
-                guard let event = eventMap[space] else { continue }
-                let x = labelWidth + CGFloat(space - spaces.lowerBound) * columnWidth + columnWidth / 2
-
-                for note in event.notes {
-                    let line = track.stringCount - note.string - 1
-                    let y = CGFloat(line) * lineHeight + 24
-                    let label: String
-                    switch note.value {
-                    case let .fret(fret): label = String(fret)
-                    case .muted: label = "x"
-                    case .stopped: label = "*"
-                    }
-
-                    let text = Text(label)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.primary)
-                    let textSize = context.resolve(text).measure(in: size)
-                    let rect = CGRect(
-                        x: x - textSize.width / 2 - 2,
-                        y: y - textSize.height / 2 - 1,
-                        width: textSize.width + 4,
-                        height: textSize.height + 2
-                    )
-                    context.fill(
-                        Path(roundedRect: rect, cornerRadius: 3),
-                        with: .color(Color(uiColor: .secondarySystemGroupedBackground))
-                    )
-                    context.draw(text, at: CGPoint(x: x, y: y))
-                }
-            }
-
-            context.draw(
-                Text("\(spaces.lowerBound + 1)")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.tertiary),
-                at: CGPoint(x: labelWidth + 2, y: 7),
-                anchor: .leading
-            )
         }
         .frame(
-            width: labelWidth + CGFloat(spaces.count) * columnWidth + 10,
-            height: CGFloat(track.stringCount) * lineHeight + 30
+            width: TimelineLayout.width(for: timelineLength),
+            height: 36
         )
-        .contentShape(Rectangle())
-        .gesture(
-            SpatialTapGesture().onEnded { tap in
-                let relativeX = tap.location.x - labelWidth
-                let line = Int(((tap.location.y - 24) / lineHeight).rounded())
-                let spaceOffset = Int(floor(relativeX / columnWidth))
-                guard relativeX >= 0,
-                      (0..<spaces.count).contains(spaceOffset),
-                      (0..<track.stringCount).contains(line) else { return }
-                let string = track.stringCount - line - 1
-                editNote(spaces.lowerBound + spaceOffset, string)
+        .accessibilityLabel("Shared song timeline")
+    }
+}
+
+private struct TrackTimelineView: View {
+    let track: TBTTrack
+    let barLines: [TBTBarLine]
+    let timelineLength: Double
+    let editNote: (Int, Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(track.name)
+                    .font(.headline)
+                Text(track.instrumentName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("· \(track.stringCount) strings")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-        )
-        .padding(8)
-        .background(
-            Color(uiColor: .secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: 12)
-        )
-        .padding(.horizontal)
+
+            Canvas { context, size in
+                for line in 0..<track.stringCount {
+                    let y = CGFloat(line) * TimelineLayout.lineHeight + 18
+                    var path = Path()
+                    path.move(to: CGPoint(x: TimelineLayout.labelWidth, y: y))
+                    path.addLine(to: CGPoint(x: size.width - 8, y: y))
+                    context.stroke(path, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
+
+                    let string = track.stringCount - line - 1
+                    context.draw(
+                        Text(tuningLabel(for: string))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary),
+                        at: CGPoint(x: TimelineLayout.labelWidth - 14, y: y)
+                    )
+                }
+
+                for barLine in barLines {
+                    let x = TimelineLayout.labelWidth
+                        + CGFloat(barLine.space) * TimelineLayout.columnWidth
+                    var path = Path()
+                    path.move(to: CGPoint(x: x, y: 10))
+                    path.addLine(
+                        to: CGPoint(
+                            x: x,
+                            y: CGFloat(track.stringCount - 1) * TimelineLayout.lineHeight + 26
+                        )
+                    )
+                    context.stroke(
+                        path,
+                        with: .color(.primary.opacity(0.7)),
+                        lineWidth: barLine.isDouble ? 3 : 1.25
+                    )
+                }
+
+                for event in track.events {
+                    let x = TimelineLayout.labelWidth
+                        + CGFloat(timelinePosition(at: event.space)) * TimelineLayout.columnWidth
+                        + TimelineLayout.columnWidth / 2
+
+                    for note in event.notes {
+                        let line = track.stringCount - note.string - 1
+                        let y = CGFloat(line) * TimelineLayout.lineHeight + 18
+                        let label: String
+                        switch note.value {
+                        case let .fret(fret): label = String(fret)
+                        case .muted: label = "x"
+                        case .stopped: label = "*"
+                        }
+
+                        let text = Text(label)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.primary)
+                        let textSize = context.resolve(text).measure(in: size)
+                        let rect = CGRect(
+                            x: x - textSize.width / 2 - 1.5,
+                            y: y - textSize.height / 2 - 1,
+                            width: textSize.width + 3,
+                            height: textSize.height + 2
+                        )
+                        context.fill(
+                            Path(roundedRect: rect, cornerRadius: 2),
+                            with: .color(Color(uiColor: .secondarySystemGroupedBackground))
+                        )
+                        context.draw(text, at: CGPoint(x: x, y: y))
+                    }
+                }
+
+                context.draw(
+                    Text(track.instrumentName)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary),
+                    at: CGPoint(x: 4, y: 6),
+                    anchor: .topLeading
+                )
+            }
+            .frame(
+                width: TimelineLayout.width(for: timelineLength),
+                height: CGFloat(track.stringCount) * TimelineLayout.lineHeight + 18
+            )
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture().onEnded { tap in
+                    let relativeX = tap.location.x - TimelineLayout.labelWidth
+                    let line = Int(((tap.location.y - 18) / TimelineLayout.lineHeight).rounded())
+                    guard relativeX >= 0,
+                          (0..<track.stringCount).contains(line) else { return }
+                    let targetTime = Double(relativeX / TimelineLayout.columnWidth)
+                    let string = track.stringCount - line - 1
+                    editNote(nearestPhysicalSpace(to: targetTime), string)
+                }
+            )
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+        }
+        .frame(width: TimelineLayout.width(for: timelineLength), alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(track.name), \(track.instrumentName)")
+    }
+
+    private func nearestPhysicalSpace(to target: Double) -> Int {
+        let positions = track.timelinePositions
+        guard !positions.isEmpty else { return 0 }
+
+        var lower = 0
+        var upper = positions.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if positions[middle] < target {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        if lower == 0 { return 0 }
+        if lower == positions.count { return positions.count - 1 }
+        return target - positions[lower - 1] <= positions[lower] - target
+            ? lower - 1
+            : lower
     }
 
     private func tuningLabel(for string: Int) -> String {

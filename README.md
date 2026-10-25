@@ -11,8 +11,10 @@ The project currently contains:
   printable strings as JSON.
 - `Tabit.xcodeproj`: a native SwiftUI iPhone/iPad reader that imports `.tbt`
   files through the system Files picker, decodes tracks and note events, and
-  renders instrument-selectable tablature. It can play one track or all tracks,
-  edit fret/mute/stop events, and export an edited `.tbt` copy.
+  renders instrument-selectable tablature on a shared horizontal timeline.
+  All-track horizontal scrolling stays synchronized. The app can play one
+  track or all tracks, edit fret/mute/stop events, and export an edited `.tbt`
+  copy.
 - Fixture-based tests for valid files and damaged headers.
 
 No original TabIt source code or proprietary assets are included.
