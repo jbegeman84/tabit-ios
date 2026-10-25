@@ -13,8 +13,8 @@ The project currently contains:
   files through the system Files picker, decodes tracks and note events, and
   renders instrument-selectable tablature on a shared horizontal timeline.
   All-track horizontal scrolling stays synchronized. The app can play one
-  track or all tracks, edit fret/mute/stop events, and export an edited `.tbt`
-  copy.
+  track or all tracks with an auto-centered shared playhead, edit
+  fret/mute/stop events, and export an edited `.tbt` copy.
 - Fixture-based tests for valid files and damaged headers.
 
 No original TabIt source code or proprietary assets are included.

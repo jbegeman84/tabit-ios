@@ -270,33 +270,47 @@ private struct TablatureView: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal)
 
-            ScrollView([.horizontal, .vertical]) {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    TimelineRuler(
-                        timelineLength: timelineLength,
-                        tempo: score.tempo
-                    )
-
-                    ForEach(displayedTracks) { track in
-                        TrackTimelineView(
-                            track: track,
-                            barLines: score.barLines,
+            ScrollViewReader { proxy in
+                ScrollView([.horizontal, .vertical]) {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        TimelineRuler(
                             timelineLength: timelineLength,
-                            editNote: { space, string in
-                                editTarget = makeEditTarget(
-                                    track: track,
-                                    space: space,
-                                    string: string
-                                )
-                            }
+                            tempo: score.tempo,
+                            playheadPosition: playback.currentTimelinePosition
                         )
+
+                        TimelineScrollAnchors(timelineLength: timelineLength)
+
+                        ForEach(displayedTracks) { track in
+                            TrackTimelineView(
+                                track: track,
+                                barLines: score.barLines,
+                                timelineLength: timelineLength,
+                                playheadPosition: playback.currentTimelinePosition,
+                                editNote: { space, string in
+                                    editTarget = makeEditTarget(
+                                        track: track,
+                                        space: space,
+                                        string: string
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom)
+                }
+                .scrollIndicators(.visible)
+                .accessibilityIdentifier("lockedTrackTimeline")
+                .onChange(
+                    of: Int(playback.currentTimelinePosition.rounded(.down))
+                ) { _, space in
+                    guard playback.isPlaying else { return }
+                    withAnimation(.linear(duration: 0.08)) {
+                        proxy.scrollTo(TimelineAnchor(space: space), anchor: .center)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom)
             }
-            .scrollIndicators(.visible)
-            .accessibilityIdentifier("lockedTrackTimeline")
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityIdentifier("tablatureView")
@@ -383,9 +397,32 @@ private enum TimelineLayout {
     }
 }
 
+private struct TimelineAnchor: Hashable {
+    let space: Int
+}
+
+private struct TimelineScrollAnchors: View {
+    let timelineLength: Double
+
+    var body: some View {
+        LazyHStack(spacing: 0) {
+            Color.clear
+                .frame(width: TimelineLayout.labelWidth, height: 1)
+            ForEach(0...Int(timelineLength.rounded(.up)), id: \.self) { space in
+                Color.clear
+                    .frame(width: TimelineLayout.columnWidth, height: 1)
+                    .id(TimelineAnchor(space: space))
+            }
+        }
+        .frame(height: 1)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct TimelineRuler: View {
     let timelineLength: Double
     let tempo: Int
+    let playheadPosition: Double
 
     var body: some View {
         Canvas { context, size in
@@ -411,6 +448,13 @@ private struct TimelineRuler: View {
                     anchor: .leading
                 )
             }
+
+            let playheadX = TimelineLayout.labelWidth
+                + CGFloat(playheadPosition) * TimelineLayout.columnWidth
+            var playhead = Path()
+            playhead.move(to: CGPoint(x: playheadX, y: 0))
+            playhead.addLine(to: CGPoint(x: playheadX, y: 34))
+            context.stroke(playhead, with: .color(.blue), lineWidth: 2)
         }
         .frame(
             width: TimelineLayout.width(for: timelineLength),
@@ -424,6 +468,7 @@ private struct TrackTimelineView: View {
     let track: TBTTrack
     let barLines: [TBTBarLine]
     let timelineLength: Double
+    let playheadPosition: Double
     let editNote: (Int, Int) -> Void
 
     var body: some View {
@@ -506,6 +551,18 @@ private struct TrackTimelineView: View {
                         context.draw(text, at: CGPoint(x: x, y: y))
                     }
                 }
+
+                let playheadX = TimelineLayout.labelWidth
+                    + CGFloat(playheadPosition) * TimelineLayout.columnWidth
+                var playhead = Path()
+                playhead.move(to: CGPoint(x: playheadX, y: 8))
+                playhead.addLine(
+                    to: CGPoint(
+                        x: playheadX,
+                        y: CGFloat(track.stringCount - 1) * TimelineLayout.lineHeight + 28
+                    )
+                )
+                context.stroke(playhead, with: .color(.blue.opacity(0.9)), lineWidth: 2)
 
                 context.draw(
                     Text(track.instrumentName)
